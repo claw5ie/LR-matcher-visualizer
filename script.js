@@ -1,5 +1,5 @@
-const canvas = document.querySelector(".hello_world");
-const ctx = canvas.getContext("2d");
+const canvas = document.querySelector('.hello_world');
+const ctx = canvas.getContext('2d');
 
 class ParseTreeNode
 {
@@ -33,7 +33,7 @@ class Box
 
 class PDA
 {
-    constructor(string)
+    constructor(string, it)
     {
         this.string = steps.string;
         this.stack = [];
@@ -41,32 +41,7 @@ class PDA
         this.last_pos = new Vec2(100, 100);
         this.xspacing = 50;
         this.yspacing = 70;
-    }
-
-    draw_tree()
-    {
-        this.draw_tree_nodes(this.stack);
-    }
-
-    draw_tree_nodes(nodes)
-    {
-        for (let node of nodes)
-        {
-            ctx.fillText(node.text, node.box.x, node.box.y);
-
-            let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
-                                      node.box.y - node.box.height);
-            for (let subnode of node.children)
-            {
-                ctx.beginPath();
-                ctx.moveTo(mid_point0.x, mid_point0.y - 10);
-                ctx.lineTo(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
-                ctx.stroke();
-                ctx.closePath();
-            }
-
-            this.draw_tree_nodes(node.children);
-        }
+        this.it = it;
     }
 
     shift()
@@ -75,6 +50,8 @@ class PDA
         let node = new ParseTreeNode(text, box_from_measure(this.last_pos, ctx.measureText(text)));
         this.stack.push(node);
         this.last_pos.x += node.box.width + this.xspacing;
+
+        return [new AnimationObject('text', 500, { text: text, box: new Vec2(node.box.x, node.box.y) })];
     }
 
     reduce(info)
@@ -100,6 +77,47 @@ class PDA
         this.stack.push(node);
 
         this.last_pos.x += node.box.width + this.xspacing;
+
+        let objects = [];
+
+        {
+            objects.push(new AnimationObject('text', 500, { text: text, box: new Vec2(node.box.x, node.box.y) }));
+
+            let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
+                                      node.box.y - node.box.height);
+            for (let subnode of node.children)
+            {
+                let start = new Vec2(mid_point0.x, mid_point0.y - 10);
+                let end = new Vec2(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
+                objects.push(new AnimationObject('line', 800, { start: end, end: start }));
+            }
+        }
+
+        return objects;
+    }
+
+    step()
+    {
+        let info = this.it.next().value;
+
+        if (info == undefined)
+            return [];
+
+        switch (info.type)
+        {
+            case 'shift':
+            {
+                return pda.shift();
+            } break;
+            case 'reduce':
+            {
+                return pda.reduce(info.to);
+            } break;
+            case 'finish':
+            {
+                return [];
+            } break;
+        }
     }
 };
 
@@ -123,7 +141,7 @@ class AnimationObject
                 let dir = new Vec2((data.end.x - data.start.x) * this.completion,
                                    (data.end.y - data.start.y) * this.completion);
 
-                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.fillStyle = 'rgb(0, 0, 0)';
                 ctx.beginPath();
                 {
                     ctx.moveTo(data.start.x, data.start.y);
@@ -131,6 +149,13 @@ class AnimationObject
                     ctx.stroke();
                 }
                 ctx.closePath();
+            } break;
+            case 'text':
+            {
+                let data = this.data;
+
+                ctx.fillStyle = 'rgb(0, 0, 0)';
+                ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
         }
     }
@@ -154,8 +179,7 @@ let steps = {
                 { "type": "finish", "result": 1 }]
 };
 
-let pda = new PDA(steps.string);
-let it = steps.actions[Symbol.iterator]();
+let pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
 
 let last_time = 0;
 let dt = 0;
@@ -167,10 +191,7 @@ function init()
 {
     canvas.width = 1920;
     canvas.height = 1080;
-    ctx.font = "32px Iosevka ss12";
-
-    animation_objects.push(new AnimationObject('line', 500, { start: new Vec2(100, 100), end: new Vec2(200, 200) }));
-    animation_objects.push(new AnimationObject('line', 1000, { start: new Vec2(canvas.width, canvas.height), end: new Vec2(0, 0) }));
+    ctx.font = '32px Iosevka ss12';
 
     window.requestAnimationFrame(draw);
 }
@@ -182,10 +203,12 @@ function clear_canvas(current_time)
 
     {
         let old_style = ctx.fillStyle;
-        ctx.fillStyle = "rgb(190, 190, 190)";
+        ctx.fillStyle = 'rgb(190, 190, 190)';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
         ctx.rect(0, 0, canvas.width, canvas.height);
         ctx.fill();
+        ctx.closePath();
         ctx.fillStyle = old_style;
     }
 }
@@ -215,56 +238,12 @@ function draw(current_time)
             animation_objects = [];
         }
     }
+    else
+    {
+        animation_objects = pda.step();
+    }
 
     window.requestAnimationFrame(draw);
 }
-
-/*
-{
-    dt = current_time - last_time;
-    last_time = current_time;
-
-    ++i;
-    i %= 60;
-
-    if (i != 0)
-    {
-        window.requestAnimationFrame(draw);
-        return;
-    }
-
-    {
-        let old_style = ctx.fillStyle;
-        ctx.fillStyle = "rgb(190, 190, 190)";
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.rect(0, 0, canvas.width, canvas.height);
-        ctx.fill();
-        ctx.fillStyle = old_style;
-    }
-
-    let step = it.next().value;
-    if (step != undefined)
-    {
-        switch (step.type)
-        {
-            case "shift":
-            {
-                pda.shift();
-            } break;
-            case "reduce":
-            {
-                pda.reduce(step.to);
-            } break;
-            case "finish":
-            {
-            } break;
-        }
-    }
-
-    pda.draw_tree();
-
-    window.requestAnimationFrame(draw);
-}
-*/
 
 init();
