@@ -35,7 +35,7 @@ class PDA
 {
     constructor(string, it)
     {
-        this.string = steps.string;
+        this.string = string;
         this.stack = [];
         this.consumed = 0;
         this.last_pos = new Vec2(100, 100);
@@ -167,19 +167,7 @@ function box_from_measure(pos, measure)
     return new Box(pos.x, pos.y, measure.width, height);
 }
 
-let steps = {
-    "string": "aboba",
-    "actions": [{ "type": "shift" },
-                { "type": "shift" },
-                { "type": "shift" },
-                { "type": "reduce", "to": { "symbol": "<B>", "size": 2, } },
-                { "type": "shift" },
-                { "type": "shift" },
-                { "type": "reduce", "to": { "symbol": "<A>", "size": 4, } },
-                { "type": "finish", "result": 1 }]
-};
-
-let pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
+let pda = undefined;
 
 let last_time = 0;
 let dt = 0;
@@ -187,11 +175,15 @@ let dt = 0;
 let animation_objects = [];
 let finished_objects = [];
 
-function init()
+async function init()
 {
     canvas.width = 1920;
     canvas.height = 1080;
     ctx.font = '32px Iosevka ss12';
+
+    let file = await fetch('./automatons/steps1.json');
+    let steps = await file.json();
+    pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
 
     window.requestAnimationFrame(draw);
 }
