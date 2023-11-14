@@ -103,6 +103,39 @@ class PDA
     }
 };
 
+class AnimationObject
+{
+    constructor(type, time, data)
+    {
+        this.type = type;
+        this.data = data;
+        this.time = time;
+        this.completion = 0;
+    }
+
+    draw()
+    {
+        switch (this.type)
+        {
+            case 'line':
+            {
+                let data = this.data;
+                let dir = new Vec2((data.end.x - data.start.x) * this.completion,
+                                   (data.end.y - data.start.y) * this.completion);
+
+                ctx.fillStyle = "rgb(0, 0, 0)";
+                ctx.beginPath();
+                {
+                    ctx.moveTo(data.start.x, data.start.y);
+                    ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
+                    ctx.stroke();
+                }
+                ctx.closePath();
+            } break;
+        }
+    }
+};
+
 function box_from_measure(pos, measure)
 {
     let height = measure.actualBoundingBoxDescent + measure.actualBoundingBoxAscent;
@@ -120,21 +153,73 @@ let steps = {
                 { "type": "reduce", "to": { "symbol": "<A>", "size": 4, } },
                 { "type": "finish", "result": 1 }]
 };
+
 let pda = new PDA(steps.string);
-let i = 0;
 let it = steps.actions[Symbol.iterator]();
+
 let last_time = 0;
 let dt = 0;
+
+let animation_objects = [];
+let finished_objects = [];
 
 function init()
 {
     canvas.width = 1920;
     canvas.height = 1080;
     ctx.font = "32px Iosevka ss12";
+
+    animation_objects.push(new AnimationObject('line', 500, { start: new Vec2(100, 100), end: new Vec2(200, 200) }));
+    animation_objects.push(new AnimationObject('line', 1000, { start: new Vec2(canvas.width, canvas.height), end: new Vec2(0, 0) }));
+
     window.requestAnimationFrame(draw);
 }
 
+function clear_canvas(current_time)
+{
+    dt = current_time - last_time;
+    last_time = current_time;
+
+    {
+        let old_style = ctx.fillStyle;
+        ctx.fillStyle = "rgb(190, 190, 190)";
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.rect(0, 0, canvas.width, canvas.height);
+        ctx.fill();
+        ctx.fillStyle = old_style;
+    }
+}
+
 function draw(current_time)
+{
+    clear_canvas(current_time);
+
+    for (let obj of finished_objects)
+        obj.draw();
+
+    if (animation_objects.length > 0)
+    {
+        let all_done = true;
+
+        for (let obj of animation_objects)
+        {
+            obj.completion += dt / obj.time;
+            obj.completion = Math.min(obj.completion, 1);
+            obj.draw();
+            all_done = (obj.completion >= 1) && all_done;
+        }
+
+        if (all_done)
+        {
+            finished_objects.push.apply(finished_objects, animation_objects);
+            animation_objects = [];
+        }
+    }
+
+    window.requestAnimationFrame(draw);
+}
+
+/*
 {
     dt = current_time - last_time;
     last_time = current_time;
@@ -180,5 +265,6 @@ function draw(current_time)
 
     window.requestAnimationFrame(draw);
 }
+*/
 
 init();
