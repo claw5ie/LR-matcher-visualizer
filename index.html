@@ -1,5 +1,19 @@
 <!doctype html>
 
-<canvas class="hello_world">
-  <script src="script.js"></script>
-</canvas>
+<html>
+  <body>
+    <title> Automatons go brrr </title>
+
+    <form name="automaton_file_form">
+      File: <input type="text" name="text_box">
+      <input type="button" value="draw PDA" onClick="draw_pda_from_file(this.form)">
+    </form>
+
+    <div>
+      <canvas class="parse_tree">
+        <script src="script.js"></script>
+      </canvas>
+    </div>
+
+  </body>
+</html>

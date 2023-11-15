@@ -1,4 +1,4 @@
-const canvas = document.querySelector('.hello_world');
+const canvas = document.querySelector('.parse_tree');
 const ctx = canvas.getContext('2d');
 
 class ParseTreeNode
@@ -107,11 +107,11 @@ class PDA
         {
             case 'shift':
             {
-                return pda.shift();
+                return this.shift();
             } break;
             case 'reduce':
             {
-                return pda.reduce(info.to);
+                return this.reduce(info.to);
             } break;
             case 'finish':
             {
@@ -167,31 +167,54 @@ function box_from_measure(pos, measure)
     return new Box(pos.x, pos.y, measure.width, height);
 }
 
-let pda = undefined;
-
-let last_time = 0;
-let dt = 0;
-
-let animation_objects = [];
-let finished_objects = [];
-
-async function init()
+class DrawingContext
 {
-    canvas.width = 1920;
-    canvas.height = 1080;
+    constructor()
+    {
+        this.reset();
+    }
+
+    reset()
+    {
+        this.pda = undefined;
+        this.last_time = 0;
+        this.dt = 0;
+        this.animation_objects = [];
+        this.finished_objects = [];
+    }
+
+    draw_pda_from_file(filepath)
+    {
+        fetch(filepath)
+            .then((file) => file.json())
+            .then((steps) => {
+                this.reset();
+                this.pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
+                window.requestAnimationFrame(draw);
+            });
+    }
+};
+
+function draw_pda_from_file(form)
+{
+    dc.draw_pda_from_file('./automatons/' + form.text_box.value);
+}
+
+const dc = new DrawingContext();
+
+function init()
+{
+    canvas.width = 800;
+    canvas.height = 600;
     ctx.font = '32px Iosevka ss12';
 
-    let file = await fetch('./automatons/steps1.json');
-    let steps = await file.json();
-    pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
-
-    window.requestAnimationFrame(draw);
+    dc.draw_pda_from_file('./automatons/steps1.json');
 }
 
 function clear_canvas(current_time)
 {
-    dt = current_time - last_time;
-    last_time = current_time;
+    dc.dt = current_time - dc.last_time;
+    dc.last_time = current_time;
 
     {
         let old_style = ctx.fillStyle;
@@ -209,16 +232,16 @@ function draw(current_time)
 {
     clear_canvas(current_time);
 
-    for (let obj of finished_objects)
+    for (let obj of dc.finished_objects)
         obj.draw();
 
-    if (animation_objects.length > 0)
+    if (dc.animation_objects.length > 0)
     {
         let all_done = true;
 
-        for (let obj of animation_objects)
+        for (let obj of dc.animation_objects)
         {
-            obj.completion += dt / obj.time;
+            obj.completion += dc.dt / obj.time;
             obj.completion = Math.min(obj.completion, 1);
             obj.draw();
             all_done = (obj.completion >= 1) && all_done;
@@ -226,13 +249,13 @@ function draw(current_time)
 
         if (all_done)
         {
-            finished_objects.push.apply(finished_objects, animation_objects);
-            animation_objects = [];
+            dc.finished_objects.push.apply(dc.finished_objects, dc.animation_objects);
+            dc.animation_objects = [];
         }
     }
     else
     {
-        animation_objects = pda.step();
+        dc.animation_objects = dc.pda.step();
     }
 
     window.requestAnimationFrame(draw);
