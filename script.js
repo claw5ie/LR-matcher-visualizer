@@ -143,12 +143,9 @@ class AnimationObject
 
                 ctx.fillStyle = 'rgb(0, 0, 0)';
                 ctx.beginPath();
-                {
-                    ctx.moveTo(data.start.x, data.start.y);
-                    ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
-                    ctx.stroke();
-                }
-                ctx.closePath();
+                ctx.moveTo(data.start.x, data.start.y);
+                ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
+                ctx.stroke();
             } break;
             case 'text':
             {
@@ -223,7 +220,6 @@ function clear_canvas(current_time)
         ctx.beginPath();
         ctx.rect(0, 0, canvas.width, canvas.height);
         ctx.fill();
-        ctx.closePath();
         ctx.fillStyle = old_style;
     }
 }
