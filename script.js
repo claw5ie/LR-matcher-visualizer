@@ -1,4 +1,4 @@
-const canvas = document.querySelector('.parse_tree');
+const canvas = document.getElementById('parse_tree');
 const ctx = canvas.getContext('2d');
 
 class ParseTreeNode

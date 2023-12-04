@@ -1,0 +1,18 @@
+.automaton-file-form {
+    padding: 10px;
+}
+
+.parse-tree-canvas-container {
+    border: 3px solid black;
+    display: flex;
+    justify-content: center;
+    column-gap: 5px;
+    padding: 5px;
+}
+
+.parse-tree-canvas {
+    width: 50%;
+    float: left;
+    padding: 0px;
+    border: 2px solid black;
+}
