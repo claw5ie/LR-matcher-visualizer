@@ -38,7 +38,7 @@ class PDA
         this.string = string;
         this.stack = [];
         this.consumed = 0;
-        this.last_pos = new Vec2(100, 100);
+        this.last_pos = new Vec2(20, 50);
         this.xspacing = 50;
         this.yspacing = 70;
         this.it = it;
@@ -141,7 +141,7 @@ class AnimationObject
                 let dir = new Vec2((data.end.x - data.start.x) * this.completion,
                                    (data.end.y - data.start.y) * this.completion);
 
-                ctx.fillStyle = 'rgb(0, 0, 0)';
+                ctx.fillStyle = '#000000';
                 ctx.beginPath();
                 ctx.moveTo(data.start.x, data.start.y);
                 ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
@@ -151,7 +151,7 @@ class AnimationObject
             {
                 let data = this.data;
 
-                ctx.fillStyle = 'rgb(0, 0, 0)';
+                ctx.fillStyle = '#000000';
                 ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
         }
@@ -215,7 +215,7 @@ function clear_canvas(current_time)
 
     {
         let old_style = ctx.fillStyle;
-        ctx.fillStyle = 'rgb(190, 190, 190)';
+        ctx.fillStyle = '#E6E6E6';
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.beginPath();
         ctx.rect(0, 0, canvas.width, canvas.height);
