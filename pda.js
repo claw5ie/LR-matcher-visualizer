@@ -1,3 +1,5 @@
+import { Vec2 } from './utils.js';
+
 const canvas = document.getElementById('parse_tree');
 const ctx = canvas.getContext('2d');
 
@@ -8,15 +10,6 @@ class ParseTreeNode
         this.text = text;
         this.box = bounding_box;
         this.children = [];
-    }
-};
-
-class Vec2
-{
-    constructor(x, y)
-    {
-        this.x = x;
-        this.y = y;
     }
 };
 
