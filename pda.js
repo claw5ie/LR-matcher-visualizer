@@ -5,16 +5,25 @@ const ctx = canvas.getContext('2d');
 
 class ParseTreeNode
 {
-    constructor(text, bounding_box)
+    text;
+    box;
+    children;
+
+    constructor(text, box, children)
     {
         this.text = text;
-        this.box = bounding_box;
-        this.children = [];
+        this.box = box;
+        this.children = children;
     }
 };
 
 class Box
 {
+    x;
+    y;
+    width;
+    height;
+
     constructor(x, y, width, height)
     {
         this.x = x;
@@ -26,25 +35,43 @@ class Box
 
 class PDA
 {
+    string;
+    stack;
+    consumed;
+    it;
+
+    font;
+    height;
+    xspacing;
+    yspacing;
+    node_start;
+    font_as_string;
+
     constructor(string, it)
     {
         this.string = string;
         this.stack = [];
         this.consumed = 0;
-        this.last_pos = new Vec2(20, 50);
-        this.xspacing = 50;
-        this.yspacing = 70;
         this.it = it;
+
+        this.font = "Iosevka ss12";
+        this.height = 32;
+        this.xspacing = 50;
+        this.yspacing = 38;
+        this.node_start = new Vec2(0, this.height);
+        this.font_as_string = this.height + "px " + this.font;
     }
 
     shift()
     {
         let text = this.string[this.consumed++];
-        let node = new ParseTreeNode(text, box_from_measure(this.last_pos, ctx.measureText(text)));
-        this.stack.push(node);
-        this.last_pos.x += node.box.width + this.xspacing;
+        let width = ctx.measureText(text).width;
+        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), []);
 
-        return [new AnimationObject('text', 500, { text: text, box: new Vec2(node.box.x, node.box.y) })];
+        this.stack.push(node);
+        this.node_start.x += width + this.xspacing;
+
+        return node;
     }
 
     reduce(info)
@@ -52,41 +79,28 @@ class PDA
         let text = info.symbol;
         let size = this.stack.length;
         let children = this.stack.splice(size - info.size, info.size);
-
-        let min_width = Number.MAX_VALUE;
-        let max_width = Number.MIN_VALUE;
-        for (let node of children)
-        {
-            min_width = Math.min(min_width, node.box.x);
-            max_width = Math.max(max_width, node.box.x + node.box.width);
-        }
-
-        let measure = ctx.measureText(text);
-        this.last_pos.x = min_width + (max_width - min_width) / 2 - measure.width / 2;
-        this.last_pos.y += this.yspacing;
-
-        let node = new ParseTreeNode(text, box_from_measure(this.last_pos, measure));
-        node.children = children;
-        this.stack.push(node);
-
-        this.last_pos.x += node.box.width + this.xspacing;
-
-        let objects = [];
+        let width = ctx.measureText(text).width;
 
         {
-            objects.push(new AnimationObject('text', 500, { text: text, box: new Vec2(node.box.x, node.box.y) }));
+            let min_width = Number.MAX_VALUE;
+            let max_width = Number.MIN_VALUE;
 
-            let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
-                                      node.box.y - node.box.height);
-            for (let subnode of node.children)
+            for (let subnode of children)
             {
-                let start = new Vec2(mid_point0.x, mid_point0.y - 10);
-                let end = new Vec2(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
-                objects.push(new AnimationObject('line', 800, { start: end, end: start }));
+                min_width = Math.min(min_width, subnode.box.x);
+                max_width = Math.max(max_width, subnode.box.x + subnode.box.width);
             }
+
+            this.node_start.x = min_width + (max_width - min_width) / 2 - width / 2;
+            this.node_start.y += this.height + this.yspacing;
         }
 
-        return objects;
+        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), children);
+
+        this.stack.push(node);
+        this.node_start.x += width + this.xspacing;
+
+        return node;
     }
 
     step()
@@ -100,11 +114,27 @@ class PDA
         {
             case 'shift':
             {
-                return this.shift();
+                let node = this.shift();
+
+                return [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
             } break;
             case 'reduce':
             {
-                return this.reduce(info.to);
+                let node = this.reduce(info.to);
+
+                let objects = [];
+                objects.push(new AnimationObject('text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
+
+                let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
+                                          node.box.y - node.box.height);
+                for (let subnode of node.children)
+                {
+                    let start = new Vec2(mid_point0.x, mid_point0.y - 10);
+                    let end = new Vec2(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
+                    objects.push(new AnimationObject('line', 800, { start: end, end: start }));
+                }
+
+                return objects;
             } break;
             case 'finish':
             {
@@ -116,6 +146,11 @@ class PDA
 
 class AnimationObject
 {
+    type;
+    data;
+    time;
+    completion;
+
     constructor(type, time, data)
     {
         this.type = type;
@@ -145,20 +180,21 @@ class AnimationObject
                 let data = this.data;
 
                 ctx.fillStyle = '#000000';
+                ctx.font = data.font;
                 ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
         }
     }
 };
 
-function box_from_measure(pos, measure)
-{
-    let height = measure.actualBoundingBoxDescent + measure.actualBoundingBoxAscent;
-    return new Box(pos.x, pos.y, measure.width, height);
-}
-
 class DrawingContext
 {
+    pda;
+    last_time;
+    dt;
+    animation_objects;
+    finished_objects;
+
     constructor()
     {
         this.reset();

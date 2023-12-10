@@ -5,6 +5,9 @@ const ctx = canvas.getContext('2d');
 
 class GraphNode
 {
+    pos;
+    force;
+
     constructor(pos)
     {
         this.pos = pos;
@@ -14,6 +17,9 @@ class GraphNode
 
 class Graph
 {
+    nodes;
+    edges;
+
     constructor(nodes, edges)
     {
         this.nodes = nodes;
@@ -45,6 +51,10 @@ class Graph
 
 class Triangle
 {
+    corner0;
+    corner1;
+    corner2;
+
     constructor(corner0, corner1, corner2)
     {
         this.corner0 = corner0;
@@ -65,6 +75,12 @@ class Triangle
 
 class Arc
 {
+    center;
+    radius;
+    start_angle;
+    end_angle;
+    is_counter_clockwise;
+
     constructor(center, radius, start_angle, end_angle, is_counter_clockwise)
     {
         this.center = center;
@@ -114,53 +130,46 @@ function randomly_distribute_nodes(graph, width, height, xmargin, ymargin)
     }
 }
 
-function layout_nodes_step(graph, t, repulsive_constant, attractive_constant, ideal_length)
-{
-    for (let i = 0; i < graph.nodes.length; i++)
-    {
-        let src_node = graph.nodes[i];
-
-        for (let j = i + 1; j < graph.nodes.length; j++)
-        {
-            let dst_node = graph.nodes[j];
-            let src = src_node.pos;
-            let dst = dst_node.pos;
-            let disp = new Vec2(dst.x - src.x, dst.y - src.y);
-            let dist = abs_v2(disp, 0);
-            disp.x /= dist;
-            disp.y /= dist;
-
-            let factor = graph.are_connected(i, j) || graph.are_connected(j, i) ?
-                attractive_constant * Math.log(dist / ideal_length) :
-                -repulsive_constant / (dist * dist);
-
-            disp.x *= factor;
-            disp.y *= factor;
-            src_node.force.x += disp.x;
-            src_node.force.y += disp.y;
-            dst_node.force.x -= disp.x;
-            dst_node.force.y -= disp.y;
-        }
-    }
-
-    const delta = 2 * Math.exp(-t * 0.001);
-
-    for (let node of graph.nodes)
-    {
-        node.pos.x += delta * node.force.x;
-        node.pos.y += delta * node.force.y;
-        node.force.x = 0;
-        node.force.y = 0;
-    }
-}
-
 function layout_nodes(graph, repulsive_constant, attractive_constant, ideal_length)
 {
-    let t = 0;
-    while (t < 1024)
+    for (let t = 0; t < 1024; t++)
     {
-        layout_nodes_step(graph, t, repulsive_constant, attractive_constant, ideal_length);
-        ++t;
+        for (let i = 0; i < graph.nodes.length; i++)
+        {
+            let src_node = graph.nodes[i];
+
+            for (let j = i + 1; j < graph.nodes.length; j++)
+            {
+                let dst_node = graph.nodes[j];
+                let src = src_node.pos;
+                let dst = dst_node.pos;
+                let disp = new Vec2(dst.x - src.x, dst.y - src.y);
+                let dist = abs_v2(disp, 0);
+                disp.x /= dist;
+                disp.y /= dist;
+
+                let factor = graph.are_connected(i, j) || graph.are_connected(j, i) ?
+                    attractive_constant * Math.log(dist / ideal_length) :
+                    -repulsive_constant / (dist * dist);
+
+                disp.x *= factor;
+                disp.y *= factor;
+                src_node.force.x += disp.x;
+                src_node.force.y += disp.y;
+                dst_node.force.x -= disp.x;
+                dst_node.force.y -= disp.y;
+            }
+        }
+
+        const delta = 2 * Math.exp(-t * 0.001);
+
+        for (let node of graph.nodes)
+        {
+            node.pos.x += delta * node.force.x;
+            node.pos.y += delta * node.force.y;
+            node.force.x = 0;
+            node.force.y = 0;
+        }
     }
 }
 

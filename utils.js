@@ -6,6 +6,11 @@ export class Vec2
         this.y = y;
     }
 
+    copy()
+    {
+        return new Vec2(this.x, this.y);
+    }
+
     normalize()
     {
         let dist = abs_v2(this, 0);
