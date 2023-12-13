@@ -1,7 +1,7 @@
 import { Vec2 } from './utils.js';
 
-const canvas = document.getElementById('parse_tree');
-const ctx = canvas.getContext('2d');
+const parse_tree_canvas = document.getElementById('parse_tree');
+const parse_tree_ctx = parse_tree_canvas.getContext('2d');
 
 class ParseTreeNode
 {
@@ -54,15 +54,15 @@ class PDA
         this.consumed = 0;
         this.it = it;
 
-        this.font = "Iosevka ss12";
-        this.height = 32;
+        this.font = "Ubuntu Mono";
+        this.height = 40;
         this.xspacing = 50;
         this.yspacing = 38;
         this.node_start = new Vec2(0, this.height);
         this.font_as_string = this.height + "px " + this.font;
     }
 
-    shift()
+    shift(ctx)
     {
         let text = this.string[this.consumed++];
         let width = ctx.measureText(text).width;
@@ -74,7 +74,7 @@ class PDA
         return node;
     }
 
-    reduce(info)
+    reduce(ctx, info)
     {
         let text = info.symbol;
         let size = this.stack.length;
@@ -103,7 +103,7 @@ class PDA
         return node;
     }
 
-    step()
+    step(ctx)
     {
         let info = this.it.next().value;
 
@@ -114,16 +114,16 @@ class PDA
         {
             case 'shift':
             {
-                let node = this.shift();
+                let node = this.shift(ctx);
 
-                return [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
+                return [new AnimationObject(ctx, 'text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
             } break;
             case 'reduce':
             {
-                let node = this.reduce(info.to);
+                let node = this.reduce(ctx, info.to);
 
                 let objects = [];
-                objects.push(new AnimationObject('text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
+                objects.push(new AnimationObject(ctx, 'text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
 
                 let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
                                           node.box.y - node.box.height);
@@ -131,7 +131,7 @@ class PDA
                 {
                     let start = new Vec2(mid_point0.x, mid_point0.y - 10);
                     let end = new Vec2(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
-                    objects.push(new AnimationObject('line', 800, { start: end, end: start }));
+                    objects.push(new AnimationObject(ctx, 'line', 800, { start: end, end: start }));
                 }
 
                 return objects;
@@ -146,13 +146,15 @@ class PDA
 
 class AnimationObject
 {
+    ctx;
     type;
     data;
     time;
     completion;
 
-    constructor(type, time, data)
+    constructor(ctx, type, time, data)
     {
+        this.ctx = ctx;
         this.type = type;
         this.data = data;
         this.time = time;
@@ -169,19 +171,20 @@ class AnimationObject
                 let dir = new Vec2((data.end.x - data.start.x) * this.completion,
                                    (data.end.y - data.start.y) * this.completion);
 
-                ctx.fillStyle = '#000000';
-                ctx.beginPath();
-                ctx.moveTo(data.start.x, data.start.y);
-                ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
-                ctx.stroke();
+                this.ctx.fillStyle = '#000000';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(data.start.x, data.start.y);
+                this.ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
+                this.ctx.stroke();
             } break;
             case 'text':
             {
                 let data = this.data;
 
-                ctx.fillStyle = '#000000';
-                ctx.font = data.font;
-                ctx.fillText(data.text, data.box.x, data.box.y);
+                this.ctx.fillStyle = '#000000';
+                this.ctx.font = data.font;
+                this.ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
         }
     }
@@ -230,14 +233,13 @@ const dc = new DrawingContext();
 
 function init()
 {
-    canvas.width = 800;
-    canvas.height = 600;
-    ctx.font = '32px Iosevka ss12';
+    parse_tree_canvas.width = 800;
+    parse_tree_canvas.height = 600;
 
     dc.draw_pda_from_file('./automatons/steps1.json');
 }
 
-function clear_canvas(current_time)
+function clear_canvas(ctx, current_time)
 {
     dc.dt = current_time - dc.last_time;
     dc.last_time = current_time;
@@ -245,9 +247,8 @@ function clear_canvas(current_time)
     {
         let old_style = ctx.fillStyle;
         ctx.fillStyle = '#E6E6E6';
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.beginPath();
-        ctx.rect(0, 0, canvas.width, canvas.height);
+        ctx.rect(0, 0, parse_tree_canvas.width, parse_tree_canvas.height);
         ctx.fill();
         ctx.fillStyle = old_style;
     }
@@ -255,7 +256,7 @@ function clear_canvas(current_time)
 
 function draw(current_time)
 {
-    clear_canvas(current_time);
+    clear_canvas(parse_tree_ctx, current_time);
 
     for (let obj of dc.finished_objects)
         obj.draw();
@@ -280,7 +281,7 @@ function draw(current_time)
     }
     else
     {
-        dc.animation_objects = dc.pda.step();
+        dc.animation_objects = dc.pda.step(parse_tree_ctx);
     }
 
     window.requestAnimationFrame(draw);
