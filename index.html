@@ -8,20 +8,19 @@
   </head>
 
   <body>
-    <div class="automaton-file-form">
-      <form name="automaton_file_form">
+    <div class="pda-file-form">
+      <form id="pda_file_form">
         File: <input type="text" name="text_box">
-        <input type="button" value="Draw PDA" onClick="draw_pda_from_file(this.form)">
+        <input type="button" name="redraw_button" value="Draw PDA">
       </form>
     </div>
 
-    <div class="parse-tree-canvas-container">
-      <canvas class="parse-tree-canvas" id="parse_tree"></canvas>
-      <canvas class="parse-tree-canvas" id="automaton"></canvas>
+    <div class="pda-canvas-container">
+      <canvas class="pda-canvas" id="pda_execution"></canvas>
+      <canvas class="pda-canvas" id="pda_graph"></canvas>
     </div>
 
     <script type="module" src="utils.js"></script>
-    <script type="module" src="graph.js"></script>
     <script type="module" src="pda.js"></script>
   </body>
 </html>

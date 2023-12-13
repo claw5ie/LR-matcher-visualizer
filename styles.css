@@ -1,8 +1,8 @@
-.automaton-file-form {
+.pda-file-form {
     padding: 10px;
 }
 
-.parse-tree-canvas-container {
+.pda-canvas-container {
     border: 3px solid black;
     display: flex;
     justify-content: center;
@@ -10,7 +10,7 @@
     padding: 5px;
 }
 
-.parse-tree-canvas {
+.pda-canvas {
     width: 50%;
     float: left;
     padding: 0px;

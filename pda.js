@@ -1,7 +1,64 @@
 import { Vec2 } from './utils.js';
 
-const parse_tree_canvas = document.getElementById('parse_tree');
-const parse_tree_ctx = parse_tree_canvas.getContext('2d');
+class DrawingContext
+{
+    ctx;
+    animation_objects;
+    finished_objects;
+
+    constructor(ctx)
+    {
+        this.ctx = ctx;
+        this.animation_objects = [];
+        this.finished_objects = [];
+    }
+
+    clear()
+    {
+        this.animation_objects = [];
+        this.finished_objects = [];
+    }
+
+    draw(dt)
+    {
+        for (let obj of this.finished_objects)
+            obj.draw(this.ctx);
+
+        let all_done = true;
+
+        for (let obj of this.animation_objects)
+        {
+            obj.completion += dt / obj.time;
+            obj.completion = Math.min(obj.completion, 1);
+            obj.draw(this.ctx);
+            all_done = (obj.completion >= 1) && all_done;
+        }
+
+        if (all_done)
+        {
+            this.finished_objects.push.apply(this.finished_objects, this.animation_objects);
+            this.animation_objects = [];
+        }
+
+        return all_done;
+    }
+};
+
+const pda_execution_canvas = document.getElementById('pda_execution');
+const pda_graph_canvas = document.getElementById('pda_graph');
+
+const pda_execution_ctx = pda_execution_canvas.getContext('2d');
+const pda_graph_ctx = pda_graph_canvas.getContext('2d');
+
+const pda_execution_dc = new DrawingContext(pda_execution_ctx);
+const pda_graph_dc = new DrawingContext(pda_graph_ctx);
+
+let g_last_time = 0;
+let g_dt = 0;
+
+let g_pda = undefined;
+
+let g_dont_draw = false;
 
 class ParseTreeNode
 {
@@ -54,12 +111,12 @@ class PDA
         this.consumed = 0;
         this.it = it;
 
-        this.font = "Ubuntu Mono";
+        this.font = 'Ubuntu Mono';
         this.height = 40;
         this.xspacing = 50;
         this.yspacing = 38;
-        this.node_start = new Vec2(0, this.height);
-        this.font_as_string = this.height + "px " + this.font;
+        this.node_start = new Vec2(10, this.height);
+        this.font_as_string = this.height + 'px ' + this.font;
     }
 
     shift(ctx)
@@ -103,27 +160,27 @@ class PDA
         return node;
     }
 
-    step(ctx)
+    step(exec_dc, graph_dc)
     {
         let info = this.it.next().value;
 
         if (info == undefined)
-            return [];
+            return;
 
         switch (info.type)
         {
             case 'shift':
             {
-                let node = this.shift(ctx);
+                let node = this.shift(exec_dc.ctx);
 
-                return [new AnimationObject(ctx, 'text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
+                exec_dc.animation_objects =  [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
             } break;
             case 'reduce':
             {
-                let node = this.reduce(ctx, info.to);
+                let node = this.reduce(exec_dc.ctx, info.to);
 
                 let objects = [];
-                objects.push(new AnimationObject(ctx, 'text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
+                objects.push(new AnimationObject('text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
 
                 let mid_point0 = new Vec2(node.box.x + node.box.width / 2,
                                           node.box.y - node.box.height);
@@ -131,37 +188,33 @@ class PDA
                 {
                     let start = new Vec2(mid_point0.x, mid_point0.y - 10);
                     let end = new Vec2(subnode.box.x + subnode.box.width / 2, subnode.box.y + 10);
-                    objects.push(new AnimationObject(ctx, 'line', 800, { start: end, end: start }));
+                    objects.push(new AnimationObject('line', 800, { start: end, end: start }));
                 }
 
-                return objects;
+                exec_dc.animation_objects = objects;
             } break;
             case 'finish':
-            {
-                return [];
-            } break;
+            break;
         }
     }
 };
 
 class AnimationObject
 {
-    ctx;
     type;
     data;
     time;
     completion;
 
-    constructor(ctx, type, time, data)
+    constructor(type, time, data)
     {
-        this.ctx = ctx;
         this.type = type;
         this.data = data;
         this.time = time;
         this.completion = 0;
     }
 
-    draw()
+    draw(ctx)
     {
         switch (this.type)
         {
@@ -171,118 +224,86 @@ class AnimationObject
                 let dir = new Vec2((data.end.x - data.start.x) * this.completion,
                                    (data.end.y - data.start.y) * this.completion);
 
-                this.ctx.fillStyle = '#000000';
-                this.ctx.lineWidth = 2;
-                this.ctx.beginPath();
-                this.ctx.moveTo(data.start.x, data.start.y);
-                this.ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
-                this.ctx.stroke();
+                ctx.fillStyle = '#000000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(data.start.x, data.start.y);
+                ctx.lineTo(data.start.x + dir.x, data.start.y + dir.y);
+                ctx.stroke();
             } break;
             case 'text':
             {
                 let data = this.data;
 
-                this.ctx.fillStyle = '#000000';
-                this.ctx.font = data.font;
-                this.ctx.fillText(data.text, data.box.x, data.box.y);
+                ctx.fillStyle = '#000000';
+                ctx.font = data.font;
+                ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
         }
     }
 };
 
-class DrawingContext
+function setup_before_first_frame(filename)
 {
-    pda;
-    last_time;
-    dt;
-    animation_objects;
-    finished_objects;
+    g_last_time = 0;
+    g_dt = 0;
 
-    constructor()
-    {
-        this.reset();
-    }
+    g_dont_draw = true;
+    pda_execution_dc.clear()
+    pda_graph_dc.clear();
 
-    reset()
-    {
-        this.pda = undefined;
-        this.last_time = 0;
-        this.dt = 0;
-        this.animation_objects = [];
-        this.finished_objects = [];
-    }
-
-    draw_pda_from_file(filepath)
-    {
-        fetch(filepath)
-            .then((file) => file.json())
-            .then((steps) => {
-                this.reset();
-                this.pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
-                window.requestAnimationFrame(draw);
-            });
-    }
-};
-
-function draw_pda_from_file(form)
-{
-    dc.draw_pda_from_file('./automatons/' + form.text_box.value);
+    fetch('./PDAs/' + filename)
+        .then((file) => file.json())
+        .then((steps) => {
+            g_pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
+            // Does this fully prevent from drawing parts of previous automaton? It is possible that there are more frames in between this and next instruction.
+            g_dont_draw = false;
+            window.requestAnimationFrame(draw);
+        });
 }
-
-const dc = new DrawingContext();
 
 function init()
 {
-    parse_tree_canvas.width = 800;
-    parse_tree_canvas.height = 600;
+    pda_execution_canvas.width = 800;
+    pda_execution_canvas.height = 600;
 
-    dc.draw_pda_from_file('./automatons/steps1.json');
+    pda_graph_canvas.width = 800;
+    pda_graph_canvas.height = 600;
+
+    const form = document.getElementById('pda_file_form');
+    form.redraw_button.onclick = function() {
+        setup_before_first_frame(form.text_box.value);
+    };
+
+    setup_before_first_frame('pda1.json');
 }
 
-function clear_canvas(ctx, current_time)
+function clear_canvas(ctx)
 {
-    dc.dt = current_time - dc.last_time;
-    dc.last_time = current_time;
-
-    {
-        let old_style = ctx.fillStyle;
-        ctx.fillStyle = '#E6E6E6';
-        ctx.beginPath();
-        ctx.rect(0, 0, parse_tree_canvas.width, parse_tree_canvas.height);
-        ctx.fill();
-        ctx.fillStyle = old_style;
-    }
+    let old_style = ctx.fillStyle;
+    ctx.fillStyle = '#E6E6E6';
+    ctx.beginPath();
+    ctx.rect(0, 0, pda_execution_canvas.width, pda_execution_canvas.height);
+    ctx.fill();
+    ctx.fillStyle = old_style;
 }
 
 function draw(current_time)
 {
-    clear_canvas(parse_tree_ctx, current_time);
+    if (g_dont_draw)
+        return;
 
-    for (let obj of dc.finished_objects)
-        obj.draw();
+    g_dt = current_time - g_last_time;
+    g_last_time = current_time;
 
-    if (dc.animation_objects.length > 0)
-    {
-        let all_done = true;
+    clear_canvas(pda_execution_ctx);
+    clear_canvas(pda_graph_ctx);
 
-        for (let obj of dc.animation_objects)
-        {
-            obj.completion += dc.dt / obj.time;
-            obj.completion = Math.min(obj.completion, 1);
-            obj.draw();
-            all_done = (obj.completion >= 1) && all_done;
-        }
+    let all_done = pda_execution_dc.draw(g_dt);
+    all_done = pda_graph_dc.draw(g_dt) && all_done;
 
-        if (all_done)
-        {
-            dc.finished_objects.push.apply(dc.finished_objects, dc.animation_objects);
-            dc.animation_objects = [];
-        }
-    }
-    else
-    {
-        dc.animation_objects = dc.pda.step(parse_tree_ctx);
-    }
+    if (all_done)
+        g_pda.step(pda_execution_dc, pda_graph_dc);
 
     window.requestAnimationFrame(draw);
 }
