@@ -424,6 +424,32 @@ function layout_nodes(graph, repulsive_constant, attractive_constant, ideal_leng
     }
 }
 
+function resize_graph(graph, new_xlow, new_xhigh, new_ylow, new_yhigh)
+{
+    let xlow = Number.MAX_VALUE;
+    let ylow = Number.MAX_VALUE;
+    let xhigh = -Number.MAX_VALUE;
+    let yhigh = -Number.MAX_VALUE;
+
+    for (let node of graph.nodes)
+    {
+        xlow = Math.min(xlow, node.pos.x);
+        ylow = Math.min(ylow, node.pos.y);
+        xhigh = Math.max(xhigh, node.pos.x);
+        yhigh = Math.max(yhigh, node.pos.y);
+    }
+
+    let x_aspect_ratio = (new_xhigh - new_xlow) / (xhigh - xlow);
+    let y_aspect_ratio = (new_yhigh - new_ylow) / (yhigh - ylow);
+
+    for (let node of graph.nodes)
+    {
+        let p = node.pos;
+        p.x = (p.x - xlow) * x_aspect_ratio + new_xlow;
+        p.y = (p.y - ylow) * y_aspect_ratio + new_ylow;
+    }
+}
+
 function arc_through_three_points(a, b, c)
 {
     let ac = new Vec2(c.x - a.x, c.y - a.y);
@@ -526,7 +552,7 @@ function draw_point(ctx, center)
     let old_style = ctx.fillStyle;
     ctx.fillStyle = '#FF0000';
     ctx.beginPath()
-    ctx.arc(center.x, center.y, 4, 0, 2 * Math.PI);
+    ctx.arc(center.x, center.y, 6, 0, 2 * Math.PI);
     ctx.fill();
     ctx.fillStyle = old_style;
 }
@@ -567,6 +593,7 @@ function init()
     g_graph = graph_from_adjacency_list(adj_list);
     randomly_distribute_nodes(g_graph, pda_graph_canvas.width, pda_graph_canvas.height, 50, 50);
     layout_nodes(g_graph, 1000, 1, 40);
+    resize_graph(g_graph, 25, 800 - 25, 25, 600 - 25);
 
     setup_before_first_frame('pda1.json');
 }
