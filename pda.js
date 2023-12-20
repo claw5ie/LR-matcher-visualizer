@@ -59,8 +59,6 @@ let g_dt = 0;
 let g_pda = undefined;
 let g_graph = undefined;
 
-let g_dont_draw = false;
-
 class ParseTreeNode
 {
     text;
@@ -559,20 +557,17 @@ function draw_point(ctx, center)
 
 function setup_before_first_frame(filename)
 {
-    g_last_time = 0;
-    g_dt = 0;
-
-    g_dont_draw = true;
-    pda_execution_dc.clear()
-    pda_graph_dc.clear();
-
     fetch('./PDAs/' + filename)
         .then((file) => file.json())
         .then((steps) => {
-            g_pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
-            // Does this fully prevent from drawing parts of previous automaton? It is possible that there are more frames in between this and next instruction.
-            g_dont_draw = false;
-            window.requestAnimationFrame(draw);
+            window.requestAnimationFrame(function(timestamp) {
+                pda_execution_dc.clear()
+                pda_graph_dc.clear();
+
+                g_pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
+
+                draw(timestamp);
+            });
         });
 }
 
@@ -600,9 +595,6 @@ function init()
 
 function draw(current_time)
 {
-    if (g_dont_draw)
-        return;
-
     g_dt = current_time - g_last_time;
     g_last_time = current_time;
 
