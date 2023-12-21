@@ -1,5 +1,9 @@
 import { Vec2, abs_v2, cross_v2, dot_v2 } from './utils.js';
 
+Module.onRuntimeInitialized = function() {
+    init();
+}
+
 class DrawingContext
 {
     ctx;
@@ -56,6 +60,7 @@ const pda_graph_dc = new DrawingContext(pda_graph_ctx);
 let g_last_time = 0;
 let g_dt = 0;
 
+let g_pda_ctx = undefined;
 let g_pda = undefined;
 let g_graph = undefined;
 
@@ -118,7 +123,7 @@ class PDA
         this.font_as_string = this.height + 'px ' + this.font;
     }
 
-    shift(ctx)
+    shift(ctx, info)
     {
         let text = this.string[this.consumed++];
         let width = ctx.measureText(text).width;
@@ -130,11 +135,12 @@ class PDA
         return node;
     }
 
+    // TODO: Implement a different style of graph: when all terminal nodes are on the same line.
     reduce(ctx, info)
     {
         let text = info.symbol;
-        let size = this.stack.length;
-        let children = this.stack.splice(size - info.size, info.size);
+        let count = this.stack.length;
+        let children = this.stack.splice(count - info.count, info.count);
         let width = ctx.measureText(text).width;
 
         {
@@ -165,18 +171,24 @@ class PDA
 
         if (info == undefined)
             return;
+        else if (typeof info === "boolean")
+            return;
 
         switch (info.type)
         {
-            case 'shift':
+            case 's':
             {
-                let node = this.shift(exec_dc.ctx);
+                let node = this.shift(exec_dc.ctx, info);
 
                 exec_dc.animation_objects =  [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
             } break;
-            case 'reduce':
+            case 'g':
             {
-                let node = this.reduce(exec_dc.ctx, info.to);
+                // TODO: implement goto.
+            } break;
+            case 'r':
+            {
+                let node = this.reduce(exec_dc.ctx, info);
 
                 let objects = [];
                 objects.push(new AnimationObject('text', 500, { text: node.text, box: new Vec2(node.box.x, node.box.y), font: this.font_as_string }));
@@ -192,8 +204,6 @@ class PDA
 
                 exec_dc.animation_objects = objects;
             } break;
-            case 'finish':
-            break;
         }
     }
 };
@@ -354,8 +364,10 @@ function graph_from_adjacency_list(adjacency_list)
     let src = 0;
     for (let neighboors of adjacency_list)
     {
-        for (let dst of neighboors)
-            graph.edges.add(src * adjacency_list.length + dst);
+        for (let edge of neighboors)
+        {
+            graph.edges.add(src * adjacency_list.length + edge.dst);
+        }
 
         graph.nodes.push(new GraphNode(new Vec2(0, 0)));
         ++src;
@@ -364,16 +376,16 @@ function graph_from_adjacency_list(adjacency_list)
     return graph;
 }
 
-function randomly_distribute_nodes(graph, width, height, xmargin, ymargin)
+function randomly_distribute_nodes(graph, startx, endx, starty, endy)
 {
     for (let node of graph.nodes)
     {
         let x = Math.random();
         let y = Math.random();
-        x *= width - xmargin;
-        y *= height - ymargin;
-        x += xmargin / 2;
-        y += ymargin / 2;
+        x *= endx - startx;
+        y *= endy - starty;
+        x += startx;
+        y += starty;
         node.pos.x = x;
         node.pos.y = y;
     }
@@ -555,20 +567,38 @@ function draw_point(ctx, center)
     ctx.fillStyle = old_style;
 }
 
-function setup_before_first_frame(filename)
+function create_parsing_table_from_string(input, use_bnf)
 {
-    fetch('./PDAs/' + filename)
-        .then((file) => file.json())
-        .then((steps) => {
-            window.requestAnimationFrame(function(timestamp) {
-                pda_execution_dc.clear()
-                pda_graph_dc.clear();
+    window.requestAnimationFrame(function (timestamp) {
+        if (g_pda_ctx)
+            g_pda_ctx.delete();
 
-                g_pda = new PDA(steps.string, steps.actions[Symbol.iterator]());
+        g_pda_ctx = Module.compute_parsing_table(input, use_bnf);
 
-                draw(timestamp);
-            });
-        });
+        let json = Module.generate_automaton_json(g_pda_ctx);
+        let adjecency_list = JSON.parse(json);
+        g_graph = graph_from_adjacency_list(adjecency_list);
+        randomly_distribute_nodes(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
+        layout_nodes(g_graph, 1000, 1, 40);
+        resize_graph(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
+
+        pda_graph_dc.clear();
+
+        draw(timestamp);
+    });
+}
+
+function match_string(input)
+{
+    window.requestAnimationFrame(function (timestamp) {
+        let json = Module.generate_automaton_steps_json(g_pda_ctx, input);
+        let steps = JSON.parse(json);
+        g_pda = new PDA(input, steps[Symbol.iterator]());
+
+        pda_execution_dc.clear();
+
+        draw(timestamp);
+    });
 }
 
 function init()
@@ -579,18 +609,22 @@ function init()
     pda_graph_canvas.width = 800;
     pda_graph_canvas.height = 600;
 
-    const form = document.getElementById('pda_file_form');
-    form.redraw_button.onclick = function() {
-        setup_before_first_frame(form.text_box.value);
+    let use_bnf_checkbox = document.getElementById('use_bnf_checkbox');
+    let context_free_grammar_text_area = document.getElementById('context_free_grammar_text_area');
+    let accept_context_free_grammar = document.getElementById('accept_context_free_grammar');
+    accept_context_free_grammar.onclick = function() {
+        create_parsing_table_from_string(context_free_grammar_text_area.value, use_bnf_checkbox.checked);
     };
 
-    let adj_list = [[1, 2], [1, 3, 4], [5, 6], [], [6, 7], [], [1, 8, 9], [], [], [6, 10], []];
-    g_graph = graph_from_adjacency_list(adj_list);
-    randomly_distribute_nodes(g_graph, pda_graph_canvas.width, pda_graph_canvas.height, 50, 50);
-    layout_nodes(g_graph, 1000, 1, 40);
-    resize_graph(g_graph, 25, 800 - 25, 25, 600 - 25);
+    let pda_input = document.getElementById('pda_input');
+    let accept_pda_input = document.getElementById('accept_pda_input');
+    accept_pda_input.onclick = function() {
+        match_string(pda_input.value);
+    };
 
-    setup_before_first_frame('pda1.json');
+    accept_context_free_grammar.onclick();
+
+    window.requestAnimationFrame(draw);
 }
 
 function draw(current_time)
@@ -604,12 +638,11 @@ function draw(current_time)
     let all_done = pda_execution_dc.draw(g_dt);
     all_done = pda_graph_dc.draw(g_dt) && all_done;
 
-    if (all_done)
+    if (all_done && g_pda)
         g_pda.step(pda_execution_dc, pda_graph_dc);
 
-    g_graph.draw(pda_graph_ctx);
+    if (g_graph)
+        g_graph.draw(pda_graph_ctx);
 
     window.requestAnimationFrame(draw);
 }
-
-init();

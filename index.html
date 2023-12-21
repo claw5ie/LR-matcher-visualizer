@@ -8,19 +8,26 @@
   </head>
 
   <body>
-    <div class="pda-file-form">
-      <form id="pda_file_form">
-        File: <input type="text" name="text_box">
-        <input type="button" name="redraw_button" value="Draw PDA">
-      </form>
-    </div>
+    <textarea id="context_free_grammar_text_area" placeholder="Context free grammar">
+S: a B ba;
+B: bo | B B
+    </textarea>
+    <br>
 
-    <div class="pda-canvas-container">
+    <input id="pda_input" type="text" name="text_box" placeholder="string to match">
+    <br> <br>
+    <input type="button" id="accept_context_free_grammar" value="Create automaton">
+    <button type="button" id="accept_pda_input">Match string</button>
+    <input type="checkbox" id="use_bnf_checkbox"><label>use BNF</label>
+    <br> <br>
+
+    <div id="pda_canvas_container">
       <canvas class="pda-canvas" id="pda_execution"></canvas>
       <canvas class="pda-canvas" id="pda_graph"></canvas>
     </div>
 
     <script type="module" src="utils.js"></script>
     <script type="module" src="pda.js"></script>
+    <script src="LR_parser.js"></script>
   </body>
 </html>

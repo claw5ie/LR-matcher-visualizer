@@ -1,8 +1,19 @@
-.pda-file-form {
-    padding: 10px;
+#context_free_grammar_text_area {
+    resize: none;
+    display: block;
+    height: 200px;
+    width: 100%;
+    font-size: 20px;
+    font-family: "Ubuntu Mono";
 }
 
-.pda-canvas-container {
+#pda_input {
+    width: 100%;
+    font-size: 20px;
+    font-family: "Ubuntu Mono";
+}
+
+#pda_canvas_container {
     border: 3px solid black;
     display: flex;
     justify-content: center;
