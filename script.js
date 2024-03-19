@@ -2,6 +2,7 @@ import { Vec2, abs_v2, cross_v2, dot_v2 } from './utils.js';
 
 Module.onRuntimeInitialized = function() {
     init();
+    window.requestAnimationFrame(draw);
 }
 
 class DrawingContext
@@ -64,20 +65,6 @@ let g_pda_ctx = undefined;
 let g_pda = undefined;
 let g_graph = undefined;
 
-class ParseTreeNode
-{
-    text;
-    box;
-    children;
-
-    constructor(text, box, children)
-    {
-        this.text = text;
-        this.box = box;
-        this.children = children;
-    }
-};
-
 class Box
 {
     x;
@@ -94,12 +81,29 @@ class Box
     }
 };
 
+class ParseTreeNode
+{
+    text;
+    box;
+    children;
+    node_id;
+
+    constructor(text, box, children, node_id)
+    {
+        this.text = text;
+        this.box = box;
+        this.children = children;
+        this.node_id = node_id;
+    }
+};
+
 class PDA
 {
     string;
     stack;
     consumed;
     it;
+    current_state;
 
     font;
     height;
@@ -114,6 +118,7 @@ class PDA
         this.stack = [];
         this.consumed = 0;
         this.it = it;
+        this.current_state = 0;
 
         this.font = 'Ubuntu Mono';
         this.height = 40;
@@ -127,12 +132,23 @@ class PDA
     {
         let text = this.string[this.consumed++];
         let width = ctx.measureText(text).width;
-        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), []);
+        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), [], this.current_state);
 
+        let edge = g_graph.find_edge(this.current_state, text, info.dst);
+        edge.color = '#FF0000';
+
+        this.current_state = info.dst;
         this.stack.push(node);
         this.node_start.x += width + this.xspacing;
 
         return node;
+    }
+
+    go_to(ctx, info)
+    {
+        let edge = g_graph.find_edge(this.current_state, info.label, info.dst);
+        edge.color = '#FF0000';
+        this.current_state = info.dst;
     }
 
     // TODO: Implement a different style of graph: when all terminal nodes are on the same line.
@@ -142,6 +158,20 @@ class PDA
         let count = this.stack.length;
         let children = this.stack.splice(count - info.count, info.count);
         let width = ctx.measureText(text).width;
+
+        {
+            let path = children.map((node) => node.node_id);
+            path.push(this.current_state);
+
+            let i = 0;
+            while (i + 1 < path.length)
+            {
+                let src = path[i];
+                let dst = path[++i];
+                let edge = g_graph.find_edge(src, children[i - 1].text, dst);
+                edge.color = '#000000';
+            }
+        }
 
         {
             let min_width = Number.MAX_VALUE;
@@ -157,7 +187,9 @@ class PDA
             this.node_start.y += this.height + this.yspacing;
         }
 
-        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), children);
+        this.current_state = children[0].node_id;
+
+        let node = new ParseTreeNode(text, new Box(this.node_start.x, this.node_start.y, width, this.height), children, this.current_state);
 
         this.stack.push(node);
         this.node_start.x += width + this.xspacing;
@@ -171,8 +203,14 @@ class PDA
 
         if (info == undefined)
             return;
-        else if (typeof info === "boolean")
+        else if (typeof info === 'boolean')
+        {
+            if (!info)
+                for (let edge of g_graph.edges)
+                    edge.color = '#000000';
+
             return;
+        }
 
         switch (info.type)
         {
@@ -180,11 +218,12 @@ class PDA
             {
                 let node = this.shift(exec_dc.ctx, info);
 
-                exec_dc.animation_objects =  [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
+                exec_dc.animation_objects = [new AnimationObject('text', 500, { text: node.text, box: node.box, font: this.font_as_string })];
             } break;
             case 'g':
             {
-                // TODO: implement goto.
+                this.go_to(exec_dc.ctx, info);
+                exec_dc.animation_objects = [new AnimationObject('wait', 500, { })];
             } break;
             case 'r':
             {
@@ -248,6 +287,10 @@ class AnimationObject
                 ctx.font = data.font;
                 ctx.fillText(data.text, data.box.x, data.box.y);
             } break;
+            case 'wait':
+            {
+
+            } break;
         }
     }
 };
@@ -264,6 +307,22 @@ class GraphNode
     }
 }
 
+class GraphEdge
+{
+    src;
+    label;
+    dst;
+    color;
+
+    constructor(src, label, dst)
+    {
+        this.src = src;
+        this.label = label;
+        this.dst = dst;
+        this.color = '#000000';
+    }
+}
+
 class Graph
 {
     nodes;
@@ -275,22 +334,50 @@ class Graph
         this.edges = edges;
     }
 
+    find_edge(src, label, dst)
+    {
+        for (let edge of this.edges)
+            if (edge.src == src && edge.label == label && edge.dst == dst)
+                return edge;
+        return null;
+    }
+
     are_connected(src, dst)
     {
-        return this.edges.has(src * this.nodes.length + dst);
+        for (let edge of this.edges)
+            if (edge.src == src && edge.dst == dst)
+                return true;
+        return false;
     }
 
     draw(ctx)
     {
         for (let edge of this.edges)
         {
-            let src = edge / this.nodes.length | 0;
-            let dst = edge % this.nodes.length;
+            ctx.fillStyle = edge.color;
+            ctx.strokeStyle = edge.color;
 
-            if (this.are_connected(dst, src))
-                draw_arc_between_two_points(ctx, this.nodes[src].pos, this.nodes[dst].pos, 12);
+            if (this.are_connected(edge.dst, edge.src))
+            {
+                console.log('TODO: print label in the middle of arc');
+
+                draw_arc_between_two_points(ctx, this.nodes[edge.src].pos, this.nodes[edge.dst].pos, 12);
+            }
             else
-                draw_line_between_two_points(ctx, this.nodes[src].pos, this.nodes[dst].pos);
+            {
+                let start = this.nodes[edge.src].pos;
+                let end = this.nodes[edge.dst].pos;
+                let mid = start.copy();
+                let measure = ctx.measureText(edge.label);
+
+                mid.x += (end.x - start.x) / 2 - measure.width / 2;
+                mid.y += (end.y - start.y) / 2;
+
+                draw_line_between_two_points(ctx, start, end);
+
+                ctx.font = "34px Ubuntu Mono"
+                ctx.fillText(edge.label, mid.x, mid.y);
+            }
         }
 
         for (let node of this.nodes)
@@ -359,14 +446,14 @@ function clear_canvas(ctx)
 
 function graph_from_adjacency_list(adjacency_list)
 {
-    let graph = new Graph([], new Set());
+    let graph = new Graph([], []);
 
     let src = 0;
     for (let neighboors of adjacency_list)
     {
         for (let edge of neighboors)
         {
-            graph.edges.add(src * adjacency_list.length + edge.dst);
+            graph.edges.push(new GraphEdge(src, edge.label, edge.dst));
         }
 
         graph.nodes.push(new GraphNode(new Vec2(0, 0)));
@@ -520,8 +607,8 @@ function draw_arc_between_two_points(ctx, start, end, height)
         arc_margin = 2 * Math.PI - arc_margin;
     else
         arc_margin = -arc_margin;
-    arc_margin /= 10;
 
+    arc_margin /= 10;
     arc.start_angle -= arc_margin;
     arc.end_angle += arc_margin;
 
@@ -570,21 +657,30 @@ function draw_point(ctx, center)
 function create_parsing_table_from_string(input, use_bnf)
 {
     window.requestAnimationFrame(function (timestamp) {
-        if (g_pda_ctx)
-            g_pda_ctx.delete();
+        try
+        {
+            let new_ctx = Module.compute_parsing_table(input, use_bnf);
 
-        g_pda_ctx = Module.compute_parsing_table(input, use_bnf);
+            if (g_pda_ctx)
+                g_pda_ctx.delete();
 
-        let json = Module.generate_automaton_json(g_pda_ctx);
-        let adjecency_list = JSON.parse(json);
-        g_graph = graph_from_adjacency_list(adjecency_list);
-        randomly_distribute_nodes(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
-        layout_nodes(g_graph, 1000, 1, 40);
-        resize_graph(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
+            g_pda_ctx = new_ctx;
 
-        pda_graph_dc.clear();
+            let json = Module.generate_automaton_json(g_pda_ctx);
+            let adjecency_list = JSON.parse(json);
+            g_graph = graph_from_adjacency_list(adjecency_list);
+            randomly_distribute_nodes(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
+            layout_nodes(g_graph, 1000, 1, 40);
+            resize_graph(g_graph, 25, pda_graph_canvas.width - 25, 25, pda_graph_canvas.height - 25);
 
-        draw(timestamp);
+            pda_graph_dc.clear();
+
+            draw(timestamp);
+        }
+        catch (error)
+        {
+            console.log('TODO: report error somehow.');
+        }
     });
 }
 
@@ -623,8 +719,6 @@ function init()
     };
 
     accept_context_free_grammar.onclick();
-
-    window.requestAnimationFrame(draw);
 }
 
 function draw(current_time)
