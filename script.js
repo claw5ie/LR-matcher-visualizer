@@ -359,8 +359,7 @@ class Graph
 
             if (this.are_connected(edge.dst, edge.src))
             {
-                console.log('TODO: print label in the middle of arc');
-
+                // TODO: print label in the middle of arc.
                 draw_arc_between_two_points(ctx, this.nodes[edge.src].pos, this.nodes[edge.dst].pos, 12);
             }
             else
